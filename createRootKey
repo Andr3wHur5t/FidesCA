@@ -1,0 +1,39 @@
+#!/bin/sh
+source $(dirname $0)/defaults
+
+if [[ -z "$1" || -z "$2" ]]; then
+  echo " A tool to simplify and standardize the creation of a root CA, designed to be used with a suite of tools.\n"
+  echo " Usage: createRootKey <OrgConfig> <RootCommonName>\n"
+  echo "   <OrgConfig> - A shell file exporting crypto standards and x509 labels to be used."
+  echo "   <RootCommonName> - The common name you want to set to the generated x509 cert.\n"
+  exit 1
+fi
+
+# Load the configuration from the passed file
+source "$1"
+
+# Expect Common Name to be set
+x509_COMMON_NAME=$2
+x509_SUBJECT="/C=${x509_COUNTRY}/O=${x509_ORG}/CN=${x509_COMMON_NAME}"
+
+mkdir -p "$ROOT_CA_PATH"
+make_private_key root "${ROOT_CA_BASE_FILE}.key"
+
+info "Locking down root key file system access to 400..."
+chmod 700 "${ROOT_CA_BASE_FILE}.key"
+success "Saved key to '${ROOT_CA_BASE_FILE}.key'"
+
+info "Generating x509 certificate from Root Key..."
+openssl req -config openssl.cfg \
+            -extensions v3_rootca \
+            -subj "$x509_SUBJECT" \
+            -new -x509 \
+            -set_serial 01 \
+            -days 365 \
+            -key "${ROOT_CA_BASE_FILE}.key" \
+            -out "${ROOT_CA_BASE_FILE}.cer"
+
+success "Root Certificate is avalible at '${ROOT_CA_BASE_FILE}.cer'"
+show_me_the_cert "${ROOT_CA_BASE_FILE}.cer"
+success "Finished Generating Root..."
+

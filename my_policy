@@ -1,0 +1,11 @@
+#!/bin/sh
+
+# What algorithms will our system use
+KEY_TYPE="ECC"
+HASH_ALGO="sha256"
+
+# Organization Info To Add To Certs
+x509_COUNTRY="US"
+x509_ORG="Andrew Hurst - Code Monkey"
+
+

@@ -1,0 +1,52 @@
+#!/bin/sh
+source $(dirname $0)/defaults
+
+if [[ -z "$1" || -z "$2" ]]; then
+  echo " A tool to simplify and standardize the creation of a intermediate CA from a root CA.\n"
+  echo " Usage: createIntermediateCA <OrgConfig> <CommonName>\n"
+  echo "   <OrgConfig> - A shell file exporting crypto standards and x509 labels to be used."
+  echo "   <CommonName> - The common name you want to set to the generated x509 cert.\n"
+  exit 1
+fi
+
+# Load the configuration from the passed file
+source "$1"
+
+# Expect Common Name to be set
+x509_COMMON_NAME=$2
+x509_SUBJECT="/C=${x509_COUNTRY}/O=${x509_ORG}/CN=${x509_COMMON_NAME}"
+
+mkdir -p "$INTERMEDIATE_CA_PATH/$x509_COMMON_NAME"
+INTERMEDIATE_BASE_NAME="$INTERMEDIATE_CA_PATH/$x509_COMMON_NAME/$x509_COMMON_NAME"
+
+# 1. Make A Private Key So we Can ask to it to be signed
+make_private_key intermediate "${INTERMEDIATE_BASE_NAME}.key"
+success "Created the intermediate private key at '${INTERMEDIATE_BASE_NAME}.key'"
+
+# 2. Make a request object so we can get our key signed
+info "Making the certificate request object..."
+openssl req -new -subj "$x509_SUBJECT" -key "${INTERMEDIATE_BASE_NAME}.key" > "${INTERMEDIATE_BASE_NAME}.csr"
+success "Created the certificate request object at '${INTERMEDIATE_BASE_NAME}.csr'"
+
+# Maintain a copy for our records
+cp "${INTERMEDIATE_BASE_NAME}.csr" "$PKI_REQS_PATH"
+
+# 3. Create a Intermediate Certificate using the root key.
+info "Having the Root Certificate Sign and fulfill the intermediate certificate request."
+openssl x509 -req -$HASH_ALGO \
+             -extfile openssl.cfg \
+             -in "${INTERMEDIATE_BASE_NAME}.csr" \
+             -CAkey "${ROOT_CA_BASE_FILE}.key" \
+             -CA "${ROOT_CA_BASE_FILE}.cer" \
+             -set_serial 02 \
+             -days 182 \
+             -extensions v3_partnerca > "${INTERMEDIATE_BASE_NAME}.cer"
+
+success "Certificate was issued and is available at '${INTERMEDIATE_BASE_NAME}.cer'"
+show_me_the_cert "${INTERMEDIATE_BASE_NAME}.cer"
+
+
+info "Generating the certificate chain..."
+cat "${INTERMEDIATE_BASE_NAME}.cer" "${ROOT_CA_BASE_FILE}.cer" > "${INTERMEDIATE_BASE_NAME}_chain.pem"
+success "Finished with intermediate cert generation..."
+

@@ -1,0 +1,78 @@
+#!/bin/sh
+
+KEY_TYPE="ECC"
+
+### RSA ###
+
+# Key sizes are: 1024, 2048, 4096
+RSA_SIZE=4084
+
+### Elliptic Curve ###
+
+# Example Curves are: secp256r1, secp384r1, secp521r1
+ECC_CURVE="secp521r1"
+
+
+### Ensure Environment Is Configured ###
+if [[ -z "$PKI_ROOT_PATH" ]]; then
+  PKI_ROOT_PATH="."
+fi
+
+PKI_REQS_PATH="$PKI_ROOT_PATH/reqs"
+
+ROOT_CA_PATH="$PKI_ROOT_PATH/root_ca"
+ROOT_CA_BASE_FILE="$ROOT_CA_PATH/root_ca"
+
+INTERMEDIATE_CA_PATH="$PKI_ROOT_PATH/intermediate_ca"
+USER_CA_PATH="$PKI_ROOT_PATH/user_certs"
+
+mkdir -p $PKI_ROOT_PATH $PKI_REQS_PATH $INTERMEDIATE_CA_PATH $ROOT_CA_PATH
+
+### Logging Helpers ###
+
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+GREEN='\033[0;32m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
+
+info () {
+  echo "${CYAN}$1${NC}"
+}
+
+warn () {
+  echo "${YELLOW}$1${NC}"
+}
+
+success () {
+  echo "${GREEN}$1${NC}"
+}
+
+error () {
+  echo "${RED}$1${NC}"
+}
+
+### Key Gen Helpers ###
+
+# Keeping this function here ensures consistency between the options used to generate keys
+make_private_key () {
+  if [ "$KEY_TYPE" == "ECC" ]; then
+    info "Generating $1 key using Elliptic Curve $ECC_CURVE..."
+    openssl ecparam  -param_enc named_curve \
+                     -name $ECC_CURVE \
+                     -genkey \
+                     -outform PEM \
+                     -out "$2"
+  else
+    info "Generating ${RSA_SIZE}bit RSA $1 key..."
+    openssl genrsa -out "$2" $RSA_SIZE
+  fi
+}
+
+show_me_the_cert () {
+  info ">>> You can see its public contents with 'openssl x509 -in \"$1\" -text -noout'"
+}
+
+# Enable Early Abort for future calls
+set -e
+
